@@ -4,7 +4,7 @@ const axios = require('axios');
 // API-based providers
 async function fetchZenQuote() {
   try {
-    const res = await axios.get('https://zenquotes.io/api/random');
+    const res = await axios.get('https://zenquotes.io/api/random', { timeout: 5000 });
     if (res.data && res.data[0]) {
       return {
         text: res.data[0].q,
@@ -12,13 +12,15 @@ async function fetchZenQuote() {
         source: 'ZenQuotes'
       };
     }
-  } catch {}
+  } catch (error) {
+    console.log('⚠️ ZenQuotes API failed:', error.message);
+  }
   return null;
 }
 
 async function fetchQuotableQuote() {
   try {
-    const res = await axios.get('https://api.quotable.io/random');
+    const res = await axios.get('https://api.quotable.io/random', { timeout: 5000 });
     if (res.data && res.data.content) {
       return {
         text: res.data.content,
@@ -26,13 +28,15 @@ async function fetchQuotableQuote() {
         source: 'Quotable'
       };
     }
-  } catch {}
+  } catch (error) {
+    console.log('⚠️ Quotable API failed:', error.message);
+  }
   return null;
 }
 
 async function fetchFavQsQuote() {
   try {
-    const res = await axios.get('https://favqs.com/api/qotd');
+    const res = await axios.get('https://favqs.com/api/qotd', { timeout: 5000 });
     if (res.data && res.data.quote) {
       return {
         text: res.data.quote.body,
@@ -40,7 +44,9 @@ async function fetchFavQsQuote() {
         source: 'FavQs'
       };
     }
-  } catch {}
+  } catch (error) {
+    console.log('⚠️ FavQs API failed:', error.message);
+  }
   return null;
 }
 
@@ -97,7 +103,10 @@ async function getQuote() {
     { name: 'FavQs', func: fetchFavQsQuote }
   ];
   
-  for (const provider of providers) {
+  // Randomize provider order for variety
+  const shuffledProviders = providers.sort(() => Math.random() - 0.5);
+  
+  for (const provider of shuffledProviders) {
     try {
       console.log(`📡 Trying ${provider.name}...`);
       const quote = await provider.func();

@@ -258,133 +258,244 @@ client.once('ready', async () => {
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
-  // Handle DM commands
-  if (!interaction.inGuild()) {
-    console.log(`💬 DM Command /${interaction.commandName} used by ${interaction.user.tag}`);
+  try {
+    // Handle DM commands
+    if (!interaction.inGuild()) {
+      console.log(`💬 DM Command /${interaction.commandName} used by ${interaction.user.tag}`);
+      
+      if (interaction.commandName === 'qotd') {
+        try {
+          await interaction.deferReply();
+          const quote = await getQuote();
+          if (!quote || !quote.text) {
+            return await interaction.editReply('Sorry, no quote is available at the moment. Please try again later.');
+          }
+          const embed = createQuoteEmbed(quote, false);
+          return await interaction.editReply({ embeds: [embed] });
+        } catch (error) {
+          console.error('❌ Error handling DM /qotd command:', error);
+          if (interaction.deferred) {
+            return await interaction.editReply('Sorry, there was an error getting your quote. Please try again later.');
+          } else {
+            return await interaction.reply('Sorry, there was an error getting your quote. Please try again later.');
+          }
+        }
+      } else if (interaction.commandName === 'questionoftheday') {
+        try {
+          await interaction.deferReply();
+          const question = await getQuestion();
+          if (!question || !question.question) {
+            return await interaction.editReply('Sorry, no question is available at the moment. Please try again later.');
+          }
+          const embed = createQuestionEmbed(question, false);
+          return await interaction.editReply({ embeds: [embed] });
+        } catch (error) {
+          console.error('❌ Error handling DM /questionoftheday command:', error);
+          if (interaction.deferred) {
+            return await interaction.editReply('Sorry, there was an error getting your question. Please try again later.');
+          } else {
+            return await interaction.reply('Sorry, there was an error getting your question. Please try again later.');
+          }
+        }
+      } else {
+        return await interaction.reply({ content: 'This is an admin command and can only be used in a server.', ephemeral: true });
+      }
+    }
+
+    // Handle Server commands
+    const guildId = interaction.guildId;
+    console.log(`💬 Command /${interaction.commandName} used in ${interaction.guild?.name || 'DM'} by ${interaction.user.tag}`);
     
     if (interaction.commandName === 'qotd') {
-      await interaction.deferReply();
-      const quote = await getQuote();
-      if (!quote.text) return interaction.editReply('Sorry, no quote is available at the moment.');
-      const embed = createQuoteEmbed(quote, false);
-      return interaction.editReply({ embeds: [embed] });
+      try {
+        const today = getTodayUTCDate();
+        getQuoteForDate(guildId, today, async (row) => {
+          try {
+            if (row) {
+              const embed = createQuoteEmbed({ text: row.text, author: row.author, source: row.source || 'Unknown' }, false);
+              return await interaction.reply({ embeds: [embed] });
+            }
+            getLastQuote(guildId, async (lastRow) => {
+              try {
+                let quote, attempts = 0;
+                do {
+                  quote = await getQuote();
+                  attempts++;
+                } while (quote && lastRow && quote.text === lastRow.text && attempts < 5);
+                
+                if (!quote || !quote.text) {
+                  return await interaction.reply('Sorry, no quote is available at the moment. Please try again later.');
+                }
+                
+                saveQuote(guildId, quote.text, quote.author, quote.source);
+                const embed = createQuoteEmbed(quote, false);
+                await interaction.reply({ embeds: [embed] });
+              } catch (error) {
+                console.error('❌ Error in getLastQuote callback:', error);
+                if (!interaction.replied) {
+                  await interaction.reply('Sorry, there was an error getting your quote. Please try again later.');
+                }
+              }
+            });
+          } catch (error) {
+            console.error('❌ Error in getQuoteForDate callback:', error);
+            if (!interaction.replied) {
+              await interaction.reply('Sorry, there was an error getting your quote. Please try again later.');
+            }
+          }
+        });
+      } catch (error) {
+        console.error('❌ Error handling server /qotd command:', error);
+        if (!interaction.replied) {
+          await interaction.reply('Sorry, there was an error processing your request. Please try again later.');
+        }
+      }
+    } else if (interaction.commandName === 'setqotdchannel') {
+      try {
+        if (!interaction.memberPermissions.has('Administrator')) {
+          return await interaction.reply({ content: 'Only admins can set the QOTD channel.', flags: 64 });
+        }
+        const channel = interaction.options.getChannel('channel');
+        getGuildSettings(guildId, (settings) => {
+          setGuildSettings(
+            guildId, 
+            channel.id, 
+            settings ? settings.post_hour : 9, 
+            settings ? settings.question_channel_id : null, 
+            settings ? settings.question_post_hour : 10
+          );
+          console.log(`⚙️ ${interaction.guild.name}: QOTD channel set to #${channel.name}`);
+          interaction.reply({ content: `QOTD channel set to <#${channel.id}>.`, flags: 64 });
+        });
+      } catch (error) {
+        console.error('❌ Error handling setqotdchannel command:', error);
+        if (!interaction.replied) {
+          await interaction.reply('Sorry, there was an error setting the QOTD channel. Please try again later.');
+        }
+      }
+    } else if (interaction.commandName === 'setqotdhour') {
+      try {
+        if (!interaction.memberPermissions.has('Administrator')) return interaction.reply({ content: 'Only admins can set the QOTD hour.', flags: 64 });
+        const hour = interaction.options.getInteger('hour');
+        getGuildSettings(guildId, (settings) => {
+          setGuildSettings(
+            guildId, 
+            settings ? settings.channel_id : null, 
+            hour, 
+            settings ? settings.question_channel_id : null, 
+            settings ? settings.question_post_hour : 10
+          );
+          console.log(`⏰ ${interaction.guild.name}: QOTD hour set to ${hour}:00 UTC`);
+          interaction.reply({ content: `QOTD post hour set to ${hour}:00 UTC.`, flags: 64 });
+        });
+      } catch (error) {
+        console.error('❌ Error handling setqotdhour command:', error);
+        if (!interaction.replied) {
+          await interaction.reply('Sorry, there was an error setting the QOTD hour. Please try again later.');
+        }
+      }
     } else if (interaction.commandName === 'questionoftheday') {
-      await interaction.deferReply();
-      const question = await getQuestion();
-      if (!question.question) return interaction.editReply('Sorry, no question is available at the moment.');
-      const embed = createQuestionEmbed(question, false);
-      return interaction.editReply({ embeds: [embed] });
-    } else {
-      return interaction.reply({ content: 'This is an admin command and can only be used in a server.', ephemeral: true });
+      try {
+        const today = getTodayUTCDate();
+        getQuestionForDate(guildId, today, async (row) => {
+          try {
+            if (row) {
+              const questionData = {
+                question: row.question,
+                type: row.type,
+                category: row.category,
+                difficulty: row.difficulty,
+                correct_answer: row.correct_answer,
+                options: row.options ? JSON.parse(row.options) : null
+              };
+              const embed = createQuestionEmbed(questionData, false);
+              return interaction.reply({ embeds: [embed] });
+            }
+            getLastQuestion(guildId, async (lastRow) => {
+              try {
+                let question, attempts = 0;
+                do {
+                  question = await getQuestion();
+                  attempts++;
+                } while (question && lastRow && question.question === lastRow.question && attempts < 5);
+                if (!question.question) return interaction.reply('No question available.');
+                saveQuestion(guildId, question.question, question.type, question.category, question.difficulty, question.correct_answer, question.options);
+                const embed = createQuestionEmbed(question, false);
+                interaction.reply({ embeds: [embed] });
+              } catch (error) {
+                console.error('❌ Error in getLastQuestion callback:', error);
+                if (!interaction.replied) {
+                  await interaction.reply('Sorry, there was an error getting your question. Please try again later.');
+                }
+              }
+            });
+          } catch (error) {
+            console.error('❌ Error in getQuestionForDate callback:', error);
+            if (!interaction.replied) {
+              await interaction.reply('Sorry, there was an error getting your question. Please try again later.');
+            }
+          }
+        });
+      } catch (error) {
+        console.error('❌ Error handling server /questionoftheday command:', error);
+        if (!interaction.replied) {
+          await interaction.reply('Sorry, there was an error processing your request. Please try again later.');
+        }
+      }
+    } else if (interaction.commandName === 'setquestionchannel') {
+      try {
+        if (!interaction.memberPermissions.has('Administrator')) return interaction.reply({ content: 'Only admins can set the Question channel.', flags: 64 });
+        const channel = interaction.options.getChannel('channel');
+        getGuildSettings(guildId, (settings) => {
+          setGuildSettings(
+            guildId, 
+            settings ? settings.channel_id : null, 
+            settings ? settings.post_hour : 9, 
+            channel.id, 
+            settings ? settings.question_post_hour : 10
+          );
+          console.log(`⚙️ ${interaction.guild.name}: Question channel set to #${channel.name}`);
+          interaction.reply({ content: `Question of the Day channel set to <#${channel.id}>.`, flags: 64 });
+        });
+      } catch (error) {
+        console.error('❌ Error handling setquestionchannel command:', error);
+        if (!interaction.replied) {
+          await interaction.reply('Sorry, there was an error setting the Question channel. Please try again later.');
+        }
+      }
+    } else if (interaction.commandName === 'setquestionhour') {
+      try {
+        if (!interaction.memberPermissions.has('Administrator')) return interaction.reply({ content: 'Only admins can set the Question hour.', flags: 64 });
+        const hour = interaction.options.getInteger('hour');
+        getGuildSettings(guildId, (settings) => {
+          setGuildSettings(
+            guildId, 
+            settings ? settings.channel_id : null, 
+            settings ? settings.post_hour : 9, 
+            settings ? settings.question_channel_id : null, 
+            hour
+          );
+          console.log(`⏰ ${interaction.guild.name}: Question post hour set to ${hour}:00 UTC`);
+          interaction.reply({ content: `Question post hour set to ${hour}:00 UTC.`, flags: 64 });
+        });
+      } catch (error) {
+        console.error('❌ Error handling setquestionhour command:', error);
+        if (!interaction.replied) {
+          await interaction.reply('Sorry, there was an error setting the Question hour. Please try again later.');
+        }
+      }
     }
-  }
-
-  // Handle Server commands
-  const guildId = interaction.guildId;
-  console.log(`💬 Command /${interaction.commandName} used in ${interaction.guild?.name || 'DM'} by ${interaction.user.tag}`);
-  
-  if (interaction.commandName === 'qotd') {
-    const today = getTodayUTCDate();
-    getQuoteForDate(guildId, today, async (row) => {
-      if (row) {
-        const embed = createQuoteEmbed({ text: row.text, author: row.author, source: row.source || 'Unknown' }, false);
-        return interaction.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error('❌ Unexpected error in interactionCreate handler:', error);
+    try {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'Sorry, an unexpected error occurred. Please try again later.', ephemeral: true });
+      } else if (interaction.deferred) {
+        await interaction.editReply('Sorry, an unexpected error occurred. Please try again later.');
       }
-      getLastQuote(guildId, async (lastRow) => {
-        let quote, attempts = 0;
-        do {
-          quote = await getQuote();
-          attempts++;
-        } while (quote && lastRow && quote.text === lastRow.text && attempts < 5);
-        if (!quote.text) return interaction.reply('No quote available.');
-        saveQuote(guildId, quote.text, quote.author, quote.source);
-        const embed = createQuoteEmbed(quote, false);
-        interaction.reply({ embeds: [embed] });
-      });
-    });
-  } else if (interaction.commandName === 'setqotdchannel') {
-    if (!interaction.memberPermissions.has('Administrator')) return interaction.reply({ content: 'Only admins can set the QOTD channel.', flags: 64 });
-    const channel = interaction.options.getChannel('channel');
-    getGuildSettings(guildId, (settings) => {
-      setGuildSettings(
-        guildId, 
-        channel.id, 
-        settings ? settings.post_hour : 9, 
-        settings ? settings.question_channel_id : null, 
-        settings ? settings.question_post_hour : 10
-      );
-      console.log(`⚙️ ${interaction.guild.name}: QOTD channel set to #${channel.name}`);
-      interaction.reply({ content: `QOTD channel set to <#${channel.id}>.`, flags: 64 });
-    });
-  } else if (interaction.commandName === 'setqotdhour') {
-    if (!interaction.memberPermissions.has('Administrator')) return interaction.reply({ content: 'Only admins can set the QOTD hour.', flags: 64 });
-    const hour = interaction.options.getInteger('hour');
-    getGuildSettings(guildId, (settings) => {
-      setGuildSettings(
-        guildId, 
-        settings ? settings.channel_id : null, 
-        hour, 
-        settings ? settings.question_channel_id : null, 
-        settings ? settings.question_post_hour : 10
-      );
-      console.log(`⏰ ${interaction.guild.name}: QOTD hour set to ${hour}:00 UTC`);
-      interaction.reply({ content: `QOTD post hour set to ${hour}:00 UTC.`, flags: 64 });
-    });
-  } else if (interaction.commandName === 'questionoftheday') {
-    const today = getTodayUTCDate();
-    getQuestionForDate(guildId, today, async (row) => {
-      if (row) {
-        const questionData = {
-          question: row.question,
-          type: row.type,
-          category: row.category,
-          difficulty: row.difficulty,
-          correct_answer: row.correct_answer,
-          options: row.options ? JSON.parse(row.options) : null
-        };
-        const embed = createQuestionEmbed(questionData, false);
-        return interaction.reply({ embeds: [embed] });
-      }
-      getLastQuestion(guildId, async (lastRow) => {
-        let question, attempts = 0;
-        do {
-          question = await getQuestion();
-          attempts++;
-        } while (question && lastRow && question.question === lastRow.question && attempts < 5);
-        if (!question.question) return interaction.reply('No question available.');
-        saveQuestion(guildId, question.question, question.type, question.category, question.difficulty, question.correct_answer, question.options);
-        const embed = createQuestionEmbed(question, false);
-        interaction.reply({ embeds: [embed] });
-      });
-    });
-  } else if (interaction.commandName === 'setquestionchannel') {
-    if (!interaction.memberPermissions.has('Administrator')) return interaction.reply({ content: 'Only admins can set the Question channel.', flags: 64 });
-    const channel = interaction.options.getChannel('channel');
-    getGuildSettings(guildId, (settings) => {
-      setGuildSettings(
-        guildId, 
-        settings ? settings.channel_id : null, 
-        settings ? settings.post_hour : 9, 
-        channel.id, 
-        settings ? settings.question_post_hour : 10
-      );
-      console.log(`⚙️ ${interaction.guild.name}: Question channel set to #${channel.name}`);
-      interaction.reply({ content: `Question of the Day channel set to <#${channel.id}>.`, flags: 64 });
-    });
-  } else if (interaction.commandName === 'setquestionhour') {
-    if (!interaction.memberPermissions.has('Administrator')) return interaction.reply({ content: 'Only admins can set the Question hour.', flags: 64 });
-    const hour = interaction.options.getInteger('hour');
-    getGuildSettings(guildId, (settings) => {
-      setGuildSettings(
-        guildId, 
-        settings ? settings.channel_id : null, 
-        settings ? settings.post_hour : 9, 
-        settings ? settings.question_channel_id : null, 
-        hour
-      );
-      console.log(`⏰ ${interaction.guild.name}: Question post hour set to ${hour}:00 UTC`);
-      interaction.reply({ content: `Question post hour set to ${hour}:00 UTC.`, flags: 64 });
-    });
+    } catch (replyError) {
+      console.error('❌ Error sending error message:', replyError);
+    }
   }
 });
 

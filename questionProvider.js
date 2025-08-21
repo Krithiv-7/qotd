@@ -4,7 +4,7 @@ const axios = require('axios');
 // Question providers (APIs and fallbacks)
 async function fetchOpenTriviaDB() {
   try {
-    const res = await axios.get('https://opentdb.com/api.php?amount=1&type=multiple');
+    const res = await axios.get('https://opentdb.com/api.php?amount=1&type=multiple', { timeout: 5000 });
     if (res.data && res.data.results && res.data.results[0]) {
       const q = res.data.results[0];
       // Decode HTML entities
@@ -20,14 +20,14 @@ async function fetchOpenTriviaDB() {
       };
     }
   } catch (error) {
-    console.log('❌ Open Trivia DB error:', error.message);
+    console.log('⚠️ Open Trivia DB failed:', error.message);
   }
   return null;
 }
 
 async function fetchTriviaAPI() {
   try {
-    const res = await axios.get('https://the-trivia-api.com/v2/questions?limit=1');
+    const res = await axios.get('https://the-trivia-api.com/v2/questions?limit=1', { timeout: 5000 });
     if (res.data && res.data[0]) {
       const q = res.data[0];
       return {
@@ -41,14 +41,14 @@ async function fetchTriviaAPI() {
       };
     }
   } catch (error) {
-    console.log('❌ The Trivia API error:', error.message);
+    console.log('⚠️ The Trivia API failed:', error.message);
   }
   return null;
 }
 
 async function fetchNumbersAPI() {
   try {
-    const res = await axios.get('http://numbersapi.com/random/trivia');
+    const res = await axios.get('http://numbersapi.com/random/trivia', { timeout: 5000 });
     if (res.data && typeof res.data === 'string') {
       return {
         question: res.data,
@@ -61,14 +61,14 @@ async function fetchNumbersAPI() {
       };
     }
   } catch (error) {
-    console.log('❌ Numbers API error:', error.message);
+    console.log('⚠️ Numbers API failed:', error.message);
   }
   return null;
 }
 
 async function fetchAdviceSlip() {
   try {
-    const res = await axios.get('https://api.adviceslip.com/advice');
+    const res = await axios.get('https://api.adviceslip.com/advice', { timeout: 5000 });
     if (res.data && res.data.slip && res.data.slip.advice) {
       return {
         question: `What do you think about this advice: "${res.data.slip.advice}"`,
@@ -81,7 +81,7 @@ async function fetchAdviceSlip() {
       };
     }
   } catch (error) {
-    console.log('❌ Advice Slip API error:', error.message);
+    console.log('⚠️ Advice Slip API failed:', error.message);
   }
   return null;
 }
