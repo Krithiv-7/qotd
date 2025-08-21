@@ -261,18 +261,21 @@ client.on('interactionCreate', async (interaction) => {
   // Handle DM commands
   if (!interaction.inGuild()) {
     console.log(`💬 DM Command /${interaction.commandName} used by ${interaction.user.tag}`);
+    
     if (interaction.commandName === 'qotd') {
+      await interaction.deferReply();
       const quote = await getQuote();
-      if (!quote.text) return interaction.reply('Sorry, no quote is available at the moment.');
+      if (!quote.text) return interaction.editReply('Sorry, no quote is available at the moment.');
       const embed = createQuoteEmbed(quote, false);
-      return interaction.reply({ embeds: [embed] });
+      return interaction.editReply({ embeds: [embed] });
     } else if (interaction.commandName === 'questionoftheday') {
+      await interaction.deferReply();
       const question = await getQuestion();
-      if (!question.question) return interaction.reply('Sorry, no question is available at the moment.');
+      if (!question.question) return interaction.editReply('Sorry, no question is available at the moment.');
       const embed = createQuestionEmbed(question, false);
-      return interaction.reply({ embeds: [embed] });
+      return interaction.editReply({ embeds: [embed] });
     } else {
-      return interaction.reply({ content: 'This command can only be used in a server.', ephemeral: true });
+      return interaction.reply({ content: 'This is an admin command and can only be used in a server.', ephemeral: true });
     }
   }
 
