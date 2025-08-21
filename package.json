@@ -1,0 +1,17 @@
+{
+  "name": "qotd-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord bot for daily Quote of the Day with provider fallbacks and SQLite storage.",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "deploy": "node deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+  "node-cron": "4.2.1",
+    "axios": "^1.7.2",
+    "sqlite3": "^5.1.7",
+    "dotenv": "^16.4.5"
+  }
+}
