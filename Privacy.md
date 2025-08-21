@@ -176,7 +176,7 @@ For privacy-related questions or concerns:
 
 - Create an issue on our GitHub repository
 - Contact our development team through Discord support channels
-- Email privacy inquiries to [your-contact-email]
+- Email privacy inquiries to [me@krithiv.dev]
 
 ### 11.2 Data Requests
 
