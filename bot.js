@@ -257,6 +257,26 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
+
+  // Handle DM commands
+  if (!interaction.inGuild()) {
+    console.log(`💬 DM Command /${interaction.commandName} used by ${interaction.user.tag}`);
+    if (interaction.commandName === 'qotd') {
+      const quote = await getQuote();
+      if (!quote.text) return interaction.reply('Sorry, no quote is available at the moment.');
+      const embed = createQuoteEmbed(quote, false);
+      return interaction.reply({ embeds: [embed] });
+    } else if (interaction.commandName === 'questionoftheday') {
+      const question = await getQuestion();
+      if (!question.question) return interaction.reply('Sorry, no question is available at the moment.');
+      const embed = createQuestionEmbed(question, false);
+      return interaction.reply({ embeds: [embed] });
+    } else {
+      return interaction.reply({ content: 'This command can only be used in a server.', ephemeral: true });
+    }
+  }
+
+  // Handle Server commands
   const guildId = interaction.guildId;
   console.log(`💬 Command /${interaction.commandName} used in ${interaction.guild?.name || 'DM'} by ${interaction.user.tag}`);
   
